@@ -1,0 +1,26 @@
+# Secrets: never commit
+.streamlit/secrets.toml
+secrets.toml
+.env
+.env.*
+
+# Survey data (participant responses) and generated outputs that may derive from it
+data/
+outputs/
+private/
+*.xlsx
+*.xls
+*.csv
+!tests/fixtures/*.csv
+
+# Python / tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.ipynb_checkpoints/
+*.log
+.DS_Store
+Thumbs.db
+~$*

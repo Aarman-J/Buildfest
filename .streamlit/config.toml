@@ -1,0 +1,30 @@
+[theme]
+base = "light"
+primaryColor = "#4F46E5"
+backgroundColor = "#F7F8FC"
+secondaryBackgroundColor = "#EEF1F8"
+textColor = "#0F172A"
+borderColor = "#E3E7EF"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+headingFontWeights = [800, 700, 700, 600, 600, 600]
+baseRadius = "0.75rem"
+chartCategoricalColors = ["#4F46E5", "#0D9488", "#F59E0B", "#EA580C", "#8B5CF6", "#64748B"]
+
+[theme.sidebar]
+backgroundColor = "#0F172A"
+secondaryBackgroundColor = "#1E293B"
+textColor = "#E2E8F0"
+primaryColor = "#818CF8"
+borderColor = "#1E293B"
+
+[server]
+# Survey exports are small; cap uploads to limit abuse on a public deployment.
+maxUploadSize = 25
+
+[client]
+# Public deployment: show generic error messages only (details go to the server log).
+showErrorDetails = "none"
+toolbarMode = "viewer"
+
+[browser]
+gatherUsageStats = false
