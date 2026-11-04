@@ -4,13 +4,16 @@ secrets.toml
 .env
 .env.*
 
-# Survey data (participant responses) and generated outputs that may derive from it
-data/
+# Survey data and generated outputs. Exception: the BuildFest challenge sample is committed so the
+# hosted demo can auto-load it (see README). Any other data files stay private.
+data/*
+!data/BuildFest_EveryMind_Survey_Data_FULL.xlsx
 outputs/
 private/
 *.xlsx
 *.xls
 *.csv
+!data/BuildFest_EveryMind_Survey_Data_FULL.xlsx
 !tests/fixtures/*.csv
 
 # Python / tooling

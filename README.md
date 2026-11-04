@@ -108,10 +108,10 @@ Command-line pipelines:
 
 ## Deploying to Streamlit Community Cloud
 
-1. Push this repository to GitHub. `.gitignore` excludes `secrets.toml`, `data/`, `outputs/` and spreadsheets, so participant data and keys are not uploaded.
+1. Push this repository to GitHub. `.gitignore` excludes `secrets.toml`, `outputs/` and any other data files. Only the challenge sample spreadsheet is committed.
 2. Go to https://share.streamlit.io, click **Create app**, choose this repo, branch `main`, main file `app.py`. Under **Advanced settings**, choose Python 3.12.
 3. In **Advanced settings → Secrets**, paste the contents of [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example) with your real key. This is server-side and never visible to visitors.
-4. Click **Deploy**. Visitors upload a survey on *Data Upload & Quality*. The sample isn't in the public repo, so it won't auto-load.
+4. Click **Deploy**. The BuildFest 2025–26 sample (`data/BuildFest_EveryMind_Survey_Data_FULL.xlsx`) is committed, so the hosted app auto-loads it as a demo. Visitors can still upload their own survey on *Data Upload & Quality*. Set `[demo] autoload = false` to turn this off.
 
 **AI access on the public site.** `access = "public"` lets any visitor click *Generate AI Recommendations*. Spending is bounded server-side:
 - 3 calls per visitor per hour and 6 per day, with a 30 s cooldown
