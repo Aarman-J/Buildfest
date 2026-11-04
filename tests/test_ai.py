@@ -363,6 +363,9 @@ def test_client_identity_hashing():
     assert "1.2.3.4" not in a
     assert client_identity("X@y.org", "1.2.3.4") == client_identity("x@y.org", "9.9.9.9")
     assert client_identity(None, "1.2.3.4", "6.6.6.6") == a      # spoofable header ignored when IP known
+    # behind a proxy (private observed IP) the forwarded client address identifies the visitor
+    assert client_identity(None, "10.0.0.5", "8.8.8.8, 10.0.0.1") == client_identity(None, "8.8.8.8")
+    assert client_identity(None, "10.0.0.5", "8.8.8.8") != client_identity(None, "10.0.0.5", "9.9.9.9")
     assert client_identity(None, None, None) == client_identity(None, "", "")
 
 
@@ -511,3 +514,11 @@ def test_non_retryable_error_does_not_fall_back(real):
 def test_default_gemini_fallbacks():
     s = load_ai_settings({"ai": {"provider": "gemini"}}, {})
     assert s.fallback_models and s.model not in s.fallback_models
+
+
+
+def test_public_access_mode():
+    s = load_ai_settings({"ai": {"enabled": True, "access": "public"}}, {})
+    assert s.access == "public"
+    assert access_check(s, "everymind.streamlit.app", False, None)[0]
+    assert not access_check(replace(s, enabled=False), "everymind.streamlit.app", False, None)[0]

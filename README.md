@@ -106,13 +106,21 @@ Command-line pipelines:
 - `python src/run_analysis.py` produces the analysis summaries
 - `python src/explore_data.py` produces the EDA profile
 
-## Deploying to Streamlit Community Cloud (not done yet)
+## Deploying to Streamlit Community Cloud
 
-1. Push the repository to GitHub. `.gitignore` excludes `secrets.toml`, `data/`, `outputs/` and spreadsheets, so participant data is not uploaded.
-2. On share.streamlit.io, create an app with the entry point `app.py` and a Python version of 3.11 or later.
-3. Under *Advanced settings → Secrets*, paste the secrets. Leave `[ai] enabled = false` unless sign-in and an allowlist are configured.
-4. Optionally, restrict who can view the app in the Community Cloud sharing settings.
-5. After deploying, upload a file and check every page. The sample button won't appear, because `data/` isn't deployed.
+1. Push this repository to GitHub. `.gitignore` excludes `secrets.toml`, `data/`, `outputs/` and spreadsheets, so participant data and keys are not uploaded.
+2. Go to https://share.streamlit.io, click **Create app**, choose this repo, branch `main`, main file `app.py`. Under **Advanced settings**, choose Python 3.12.
+3. In **Advanced settings → Secrets**, paste the contents of [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example) with your real key. This is server-side and never visible to visitors.
+4. Click **Deploy**. Visitors upload a survey on *Data Upload & Quality*. The sample isn't in the public repo, so it won't auto-load.
+
+**AI access on the public site.** `access = "public"` lets any visitor click *Generate AI Recommendations*. Spending is bounded server-side:
+- 3 calls per visitor per hour and 6 per day, with a 30 s cooldown
+- 10 calls per hour and 30 per day for the whole site
+- 1 call at a time, and a capped output size
+
+At Gemini Flash prices that's only a few cents a day at the maximum. Counters reset if the app restarts, so also set a hard cap at the provider: in Google Cloud Console → *APIs & Services → Generative Language API → Quotas*, lower "requests per day". For a private demo, use `access = "allowlist"` with Streamlit sign-in instead, or set `enabled = false`.
+
+To change secrets later, open the app → **⋮ → Settings → Secrets**. The app restarts automatically.
 
 ## Limitations and privacy
 

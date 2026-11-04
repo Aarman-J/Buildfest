@@ -93,6 +93,8 @@ Each accepted recommendation is shown with its cited evidence statements, labell
 | Other caps | Per-session calls (default 3), maximum recommendations (default 6, hard cap 10), output tokens (default 6,000, hard cap 16,000) and timeout (60 s). |
 | Fallback | Rule-based recommendations are always available and are the primary output. |
 
+`access = "public"` allows any visitor, protected only by the server-side rate limits (per visitor and site-wide). Behind Streamlit Cloud's proxy, the visitor is identified by the forwarded client address. Spoofing it only moves someone to a fresh per-visitor bucket; the site-wide caps still limit total spend. Pair it with a provider-side daily quota.
+
 A frontend password is **not** used as protection. On a public deployment, keep `enabled = false` unless sign-in and an allowlist are configured. Never use `access = "local"` on a public server: it doesn't protect anything there and will simply refuse all requests.
 
 ### Configuration (`.streamlit/secrets.toml`, never committed)

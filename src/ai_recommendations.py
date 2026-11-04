@@ -41,7 +41,7 @@ _TRUE = {"1", "true", "yes", "on"}
 @dataclass(frozen=True)
 class AISettings:
     enabled: bool = False                 # paid feature is OFF unless explicitly enabled server-side
-    access: str = "allowlist"             # "local" (localhost only) | "allowlist" (signed-in, allowed emails)
+    access: str = "allowlist"             # "local" (localhost) | "allowlist" (signed-in emails) | "public" (anyone, rate-limited)
     allowed_emails: tuple = ()
     provider: str = DEFAULT_PROVIDER      # "gemini" | "openai"
     model: str = DEFAULT_MODEL
@@ -84,7 +84,7 @@ def load_ai_settings(secrets: Mapping | None, env: Mapping | None) -> AISettings
     return AISettings(
         provider=provider,
         enabled=as_bool(get("enabled", False)),
-        access=access if access in ("local", "allowlist") else "allowlist",
+        access=access if access in ("local", "allowlist", "public") else "allowlist",
         allowed_emails=tuple(sorted(e.strip().lower() for e in emails)),
         model=str(get("model", "") or DEFAULT_MODELS[provider]),
         fallback_models=tuple(get("fallback_models", DEFAULT_FALLBACKS[provider]) or ()),
@@ -129,6 +129,8 @@ def access_check(settings: AISettings, host: str | None, is_logged_in: bool,
     if not settings.enabled:
         return False, ("AI recommendations are turned off on this server. An administrator can enable them in the "
                        "server configuration (see README).")
+    if settings.access == "public":
+        return True, "Open to all visitors, limited by server-side rate limits."
     if settings.access == "local":
         h = (host or "").split(":")[0].lower() if host and not host.startswith("[") else (host or "").lower()
         if h in LOCAL_HOSTS or (host or "").startswith("[::1]"):
@@ -165,6 +167,15 @@ class UsageLimiter:
         return self._count
 
 
+def _is_private(ip: str) -> bool:
+    import ipaddress
+    try:
+        a = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return a.is_private or a.is_loopback or a.is_link_local
+
+
 def client_identity(email: str | None, ip: str | None, forwarded_for: str | None = None) -> str:
     """Rate-limit bucket for a visitor: signed-in email, else client IP. Hashed so raw IPs/emails are not stored.
 
@@ -176,7 +187,11 @@ def client_identity(email: str | None, ip: str | None, forwarded_for: str | None
     else:
         # Prefer the server-observed client IP; the forwarded header is client-controllable, so it is
         # only a fallback. If either is spoofed, server-wide caps still apply.
-        addr = (ip or "").strip() or (forwarded_for or "").split(",")[0].strip()
+        ip = (ip or "").strip()
+        fwd = (forwarded_for or "").split(",")[0].strip()
+        # Behind a hosting proxy (e.g. Streamlit Community Cloud) the observed IP is the proxy's private
+        # address, shared by everyone; then the forwarded client address is the only per-visitor signal.
+        addr = fwd if (fwd and (not ip or _is_private(ip))) else (ip or fwd)
         raw = "ip:" + addr if addr else "unknown"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
