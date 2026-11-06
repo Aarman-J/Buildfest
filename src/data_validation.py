@@ -362,7 +362,8 @@ def _warnings(cleaned, analyses, pairs, flags, stats, missingness, config, n) ->
     for f, m in missingness.items():
         if f in RATING_FIELDS + SAT_FIELDS and 0 < m["valid_pct"] < 50:
             add(f, "medium", f"{f} has valid answers for only {m['valid_pct']}% of rows "
-                             "(likely not asked in every survey version). Report it with its own n.")
+                             "(missing answers may reflect forms that did not show it, or skips; exposure is not recorded). "
+                             "Report it with its own n.")
     unexpected = stats.get("unexpected_categories", {})
     likert_off = {f: v for f, v in unexpected.items() if f in SAT_FIELDS + [p for pr in PRE_POST_PAIRS for p in pr]}
     if likert_off:

@@ -243,13 +243,15 @@ def test_app_runs_all_pages_without_ai_calls(monkeypatch):
         raise AssertionError("No OpenAI client may be created while AI is disabled")
     monkeypatch.setattr(openai, "OpenAI", no_paid_calls)
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=300)
+    # Do not depend on the developer's local .streamlit/secrets.toml: run with AI explicitly disabled.
+    at.secrets["ai"] = {"enabled": False}
     at.run()
     assert not at.exception
-    at.radio(key="nav").set_value("Data Upload & Quality").run()
+    at.radio(key="nav").set_value("Upload & Data Quality").run()
     [b for b in at.button if "sample" in b.label.lower()][0].click().run()
     assert not at.exception and "dataset_id" in at.session_state
-    for page in ("Executive Overview", "Q1 · Training Effectiveness", "Q2 · Trends & Relationships",
-                 "Q3 · Community Differences", "AI Insights & Recommendations", "Exports & Reports"):
+    for page in ("Executive Overview", "Explore Findings", "AI Insights & Recommendations",
+                 "Upload & Data Quality"):
         at.radio(key="nav").set_value(page).run()
         assert not at.exception, page
     at.radio(key="nav").set_value("AI Insights & Recommendations").run()

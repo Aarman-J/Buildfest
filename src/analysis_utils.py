@@ -64,6 +64,7 @@ FOLLOW_UP = "follow_up_investigation"
 class AnalysisConfig:
     min_cell: int = 10        # suppress groups/months with fewer valid responses (privacy + stability)
     min_compare: int = 30     # minimum n per group to include in comparisons and tests
+    exploratory_below: int = 50  # comparable groups with fewer respondents are labelled "exploratory"
     alpha: float = 0.05
     # Sensitivity analysis: rows with any of these flags set are excluded.
     exclude_flags: tuple = ()

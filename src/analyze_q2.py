@@ -6,7 +6,8 @@ into participants' training experiences and outcomes?"
 Associations are Spearman rank correlations on pairwise-complete rows with the
 actual n reported. They are exploratory (no causal claims, no multiple-testing
 correction). `likelihood_call_988` is only asked in some survey versions, so its
-results describe the respondents who were asked, not all participants.
+results describe the respondents who answered it, not all participants. Missing answers are answer
+coverage, not confirmed question exposure.
 """
 
 from __future__ import annotations
@@ -64,8 +65,9 @@ def recommendation(df: pd.DataFrame, cfg: AnalysisConfig) -> dict:
 def call_988(df: pd.DataFrame, cfg: AnalysisConfig) -> dict:
     cov = item_coverage(df, "likelihood_call_988")
     out = {"coverage": cov, "suppressed": suppress(cov["valid"], cfg),
-           "caveat": "Asked only in some survey versions/sessions. Results describe respondents who were asked "
-                     "and answered; they must not be generalized to all participants."}
+           "caveat": "Answer coverage only: missing answers may mean the question was not shown on some survey "
+                     "forms or was skipped (inferred survey versions are not confirmed form history). Results "
+                     "describe respondents who answered; they must not be generalized to all participants."}
     if not cov["collected"]:
         return out
     if "survey_version" in df:

@@ -25,6 +25,10 @@ LIKERT = {
     "Agree": "#818CF8", "Strongly agree": INDIGO_DARK,
 }
 RATING = {"0-6": "#FB923C", "7-8": SLATE, "9-10": INDIGO}
+AGREEMENT = {"Reached agreement": INDIGO, "Maintained agreement": "#A5B4FC",
+             "Remained below agreement": AMBER, "Moved below agreement": ORANGE}
+AUDIENCE = {"Students": INDIGO, "Staff, caregivers & community members": TEAL}
+COMPARE = {"Confident after training": INDIGO, "Still not confident": ORANGE}
 SEQUENCE = [INDIGO, TEAL, AMBER, ORANGE, "#8B5CF6", SLATE_DARK, "#0EA5E9"]
 
 FONT = "Inter, Segoe UI, Helvetica, Arial, sans-serif"
@@ -134,6 +138,19 @@ div[data-testid="stPlotlyChart"] {background:white; border:1px solid #E3E7EF; bo
     box-shadow:0 8px 24px -18px rgba(15,23,42,.18);}
 div[data-testid="stTabs"] button[role="tab"] p {font-weight:600;}
 div[data-testid="stExpander"] details {background:white; border-radius:12px;}
+.em-takeaway {font-size:.86rem; color:#475569; margin:-.2rem 0 1rem .2rem;}
+.em-takeaway b {color:#0F172A;}
+
+/* small screens (phones) */
+@media (max-width: 640px) {
+  .block-container {padding-left: .8rem; padding-right: .8rem; padding-top: 2.6rem;}
+  .em-hero {padding: 1.2rem 1.1rem; border-radius: 16px;}
+  .em-hero h1 {font-size: 1.35rem;}
+  .em-hero p {font-size: .9rem;}
+  .em-kpi .v {font-size: 1.45rem;}
+  .em-obj .after {font-size: 1.5rem;}
+  .em-header h1 {font-size: 1.5rem;}
+}
 </style>
 """
 

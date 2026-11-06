@@ -44,10 +44,14 @@ def reset(state: MutableMapping) -> None:
             state.pop(k, None)
 
 
-def register_upload(state: MutableMapping, data: bytes, filename: str) -> bool:
-    """Store a new upload. Returns True if it differs from the current one (and resets derived state)."""
+def register_upload(state: MutableMapping, data: bytes, filename: str, force: bool = False) -> bool:
+    """Store a new upload. Returns True if it was (re)registered, resetting all derived state.
+
+    `force=True` treats an explicit user upload as a fresh start even if the bytes match the current
+    dataset (e.g. re-uploading the demo file), so results are recomputed from scratch.
+    """
     h = file_hash(data)
-    if state.get("upload_hash") == h:
+    if state.get("upload_hash") == h and not force:
         return False
     reset(state)
     state["upload_hash"], state["upload_name"], state["upload_bytes"] = h, filename, data

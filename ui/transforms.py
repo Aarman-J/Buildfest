@@ -422,13 +422,15 @@ def standardization_lines(report: dict) -> list[str]:
         "likert_wording_variant": "'Neither agree or disagree' treated as 'Neither agree nor disagree'",
         "likert_case_variant": "Capitalization differences in agreement answers",
         "likert_user_override_applied": "User-approved label mappings applied",
+        "experience_labels_normalized": "Experience answers 'Very agree' -> Strongly agree and 'Satisfied' -> Agree "
+                                        "(approved normalization; original text kept)",
     }
     out = []
     for k, v in report.get("standardization", {}).items():
         if not v:
             continue
         if isinstance(v, dict):
-            v = sum(v.values())
+            v = sum(sum(x.values()) if isinstance(x, dict) else x for x in v.values())
         out.append(f"{labels.get(k, k)}: {v}")
     return out
 
@@ -533,7 +535,7 @@ def executive_summary_md(results: dict, report: dict, dataset_label: str = "") -
          "'Before' ratings were recalled after the training, so changes are self-reported and not proof of cause. "
          + AGREE_NOTE, ""]
     for o in k["objectives"]:
-        L.append(f"- **{o['label']}:** {o['pre']}% before → {o['post']}% after ({o['change']:+} pp); "
+        L.append(f"- **{o['label']}:** {o['pre']}% before → {o['post']}% after ({o['change']:+} percentage points); "
                  f"{o['gap']}% ({o['gap_k']} of {o['n']}) still not agreeing after training.")
     L += ["", "## Training experience (Q2)", ""]
     if k["lowest_experience"]:
@@ -545,17 +547,22 @@ def executive_summary_md(results: dict, report: dict, dataset_label: str = "") -
                  f"{r['detractors']}% gave 0–6.")
     if k["call_988"]:
         c = k["call_988"]
-        L.append(f"- Likelihood to call 988 was asked of only {c['valid']} of {c['rows']} respondents "
+        L.append(f"- Likelihood to call 988 was answered by only {c['valid']} of {c['rows']} respondents "
                  f"({c['valid_pct']}%); results apply only to them.")
     L += ["", "## Communities and populations (Q3)", ""]
     L += [f"- {h}" for h in community_highlights(results["q3"])] or ["- No group differences met the signal rule."]
     L += ["", "## Data-quality limitations", ""]
     L += [f"- {w}" for w in k["high_warnings"]] or ["- No high-severity warnings."]
-    L += ["", "## Top recommendations (rule-based, evidence-linked)", ""]
-    for r in [r for r in recs if r["priority"] == "high"][:5] + [r for r in recs if r["priority"] == "medium"][:3]:
-        L += [f"### {r['id']} · {r['priority'].title()} · {r['category'].replace('_', ' ')}",
-              f"- **Finding:** {r['finding']}", f"- **Action:** {r['action']}",
-              f"- **Implementation:** {r['implementation']}", f"- **Success measure:** {r['success_metric']}", ""]
+    aud = (results["q3"].get("audience") or {}).get("recommend") or {}
+    if aud.get("student_mean") is not None and aud.get("others_mean") is not None:
+        L.insert(L.index("## Communities and populations (Q3)") + 2,
+                 f"- Likelihood to recommend: students {aud['student_mean']:.1f}/10 (n = {aud['student_n']}) vs "
+                 f"other participants {aud['others_mean']:.1f}/10 (n = {aud['others_n']}). Descriptive only.")
+    if results["recommendations"].get("priorities"):
+        L += ["", priorities_md(results).replace("# Priority recommendations", "## Priority recommendations", 1)]
+    else:
+        L += ["", "## Top rule-based recommendations", ""]
+        L += [f"- **{r['action']}** {r['finding']}" for r in recs if r["priority"] == "high"][:4]
     return "\n".join(L)
 
 
@@ -584,3 +591,127 @@ def ai_recommendations_md(ai: dict) -> str:
 
 def report_json_bytes(report: dict) -> bytes:
     return json.dumps(report, indent=2, default=str).encode("utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Simplified-dashboard helpers (2026-11-06 refinement)
+# ---------------------------------------------------------------------------
+
+AGREEMENT_LABELS = {"reached": "Reached agreement", "maintained": "Maintained agreement",
+                    "remained_below": "Remained below agreement", "moved_below": "Moved below agreement"}
+
+
+def q1_agreement(q1: dict, keys=None) -> pd.DataFrame:
+    """Four exclusive agreement categories per objective (shares of all paired responses)."""
+    rows = []
+    for o in _objs(q1, keys):
+        for cat, lab in AGREEMENT_LABELS.items():
+            s = (o.get("agreement_categories") or {}).get(cat)
+            if s:
+                rows.append({"objective": o["key"], "label": o["label"], "category": lab, "pct": s["pct"],
+                             "k": s["k"], "n": s["n"]})
+    return pd.DataFrame(rows)
+
+
+def q1_reached_rates(q1: dict, keys=None) -> pd.DataFrame:
+    rows = []
+    for o in _objs(q1, keys):
+        rr = o.get("reached_agreement_rate")
+        rows.append({"Learning objective": o["label"],
+                     "Started below Agree": rr["n"] if rr else 0,
+                     "Reached agreement": rr["k"] if rr else 0,
+                     "Reached-agreement rate": f"{rr['pct']}%" if rr else "Not applicable"})
+    return pd.DataFrame(rows)
+
+
+def audience_frame(q3: dict, objective: str | None = None) -> pd.DataFrame:
+    """Students vs other participants on comparable measures (shares with CIs)."""
+    aud = q3.get("audience") or {}
+    rows = []
+    for g in aud.get("groups", []):
+        if g.get("suppressed"):
+            continue
+        exp = (g.get("experience") or {}).get("agree")
+        if exp:
+            rows.append({"group": g["label"], "measure": "Rated experience positively", **_s(exp)})
+        rec = (g.get("recommend") or {}).get("high_9_10")
+        if rec:
+            rows.append({"group": g["label"], "measure": "Would recommend (9–10)", **_s(rec)})
+        o = (g.get("objectives") or {}).get(objective) if objective else None
+        if o and o.get("post_agree"):
+            rows.append({"group": g["label"], "measure": "Confident after training",
+                         **_s(o["post_agree"])})
+    return pd.DataFrame(rows)
+
+
+def _s(share: dict) -> dict:
+    return {"pct": share["pct"], "ci_low": share["ci_low"], "ci_high": share["ci_high"], "n": share["n"]}
+
+
+def q3_compare(q3: dict, dim: str, objective: str) -> pd.DataFrame:
+    """Comparable groups only (n >= min_compare): after-agreement and remaining gap, labelled with n."""
+    rows = []
+    for r in q3["groupings"][dim]["groups"]:
+        if r["suppressed"] or not r["comparable"]:
+            continue
+        v = (r.get("objectives") or {}).get(objective)
+        if not v or v.get("suppressed") or not v.get("post_agree"):
+            continue
+        tag = " · exploratory" if r.get("exploratory") else ""
+        label = f"{r['label']} (n={r['n_display']}){tag}"
+        for measure, s in (("Confident after training", v["post_agree"]),
+                           ("Still not confident", v.get("not_agree_after"))):
+            if s:
+                rows.append({"group": label, "measure": measure, **_s(s), "exploratory": bool(r.get("exploratory"))})
+    return pd.DataFrame(rows)
+
+
+def q3_not_compared(q3: dict, dim: str) -> list[str]:
+    g = q3["groupings"][dim]
+    return [f"{r['label']} ({r['n_display']})" for r in g["groups"] if r["suppressed"] or not r["comparable"]]
+
+
+def overview_takeaways(results: dict, report: dict) -> list[tuple[str, str, str]]:
+    """Three or four plain-English takeaways computed from the results (icon, title, text)."""
+    q1, q2, q3 = results["q1"], results["q2"], results["q3"]
+    out = []
+    objs = _objs(q1, None)
+    if objs:
+        best = max(objs, key=lambda o: o["agree_pp_change"])
+        rr = best.get("reached_agreement_rate")
+        out.append(("📈", "Confidence rose after training",
+                    f"For '{best['label'].lower()}', agreement went from {best['pre_agree']['pct']}% to "
+                    f"{best['post_agree']['pct']}%"
+                    + (f"; {rr['pct']}% of those who started below Agree reached it." if rr else ".")
+                    + " These are self-reported, recalled ratings."))
+        gap = max(objs, key=lambda o: o["remaining_gap"]["not_agree_after"]["pct"])
+        g = gap["remaining_gap"]["not_agree_after"]
+        out.append(("🎯", "A confidence gap remains",
+                    f"{g['pct']}% ({g['k']} of {g['n']}) still don't agree they can {gap['label'].lower()} after "
+                    "training."))
+    rec = ((q3.get("audience") or {}).get("recommend")) or {}
+    if rec.get("student_mean") is not None and rec.get("others_mean") is not None:
+        d = rec["student_mean"] - rec["others_mean"]
+        word = "lower" if d <= -0.5 else "higher" if d >= 0.5 else "about the same"
+        out.append(("🎓", f"Students rate the training {word}",
+                    f"Students average {rec['student_mean']:.1f}/10 on recommending the training vs "
+                    f"{rec['others_mean']:.1f}/10 for staff, caregivers and community members."))
+    cov = (q2.get("call_988") or {}).get("coverage") or {}
+    if cov.get("collected") and cov.get("valid_pct") is not None and cov["valid_pct"] < 50:
+        out.append(("📞", "Intent to call 988 is barely measured",
+                    f"Only {cov['valid']} of {cov['rows']} respondents ({cov['valid_pct']}%) answered this question, "
+                    "so it can't yet be tracked program-wide."))
+    return out[:4]
+
+
+def priorities_md(results: dict) -> str:
+    L = ["# Priority recommendations (rule-based, evidence-linked)", "",
+         "_Computed from the uploaded data. Not proven interventions; each lists its limitation._", ""]
+    for p in results["recommendations"].get("priorities", []):
+        L += [f"## {p['key']}. {p['title']}", f"**Finding:** {p['finding']}", "", "**Evidence:**"]
+        L += [f"- {e}" for e in p["evidence"]]
+        L += ["", f"**Action:** {p['action']}", "", "**Implementation:**"]
+        L += [f"{i}. {s}" for i, s in enumerate(p["implementation"], 1)]
+        L += ["", f"**Responsible role:** {p['responsible_role']}", f"**Progress measure:** {p['success_metric']}",
+              f"**Limitation:** {p['limitation']}", f"_Supporting rules: {', '.join(p['linked_rules'])}_", ""]
+    return "\n".join(L)

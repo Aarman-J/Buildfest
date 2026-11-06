@@ -98,13 +98,13 @@ For each `session_key`, a question block counts as *asked* when at least 50% of 
 
 | # | Decision | Confirmed rule | Implementation |
 |---|---|---|---|
-| P1 | `Very agree` / `Satisfied` | Kept **unmapped** (NA, flagged, raw text kept) | Default. `likert_label_overrides` remains available only for a future explicit approval. |
+| P1 | `Very agree` / `Satisfied` | **Revised 2026-11-06:** mapped Very agree → 5 and Satisfied → 4 on the three experience items only, flagged `flag_experience_label_normalized`, raw text kept. See `docs/refinement_2026-11-06.md` for the evidence. | `CleaningConfig.experience_label_map` (set `{}` to disable). |
 | P2 | Possible reversed-scale responses (17) | **Retained**; sensitivity analysis provided | `analyze_q1.sensitivity` reports results with and without them |
 | P3 | Uncertain county assignments (Fairfax VA, Harris) | **Kept and flagged** | `flag_county_needs_review`, `flag_out_of_service_area` |
 | P4 | Bare `Montgomery` means Montgomery County, MD | Unchanged assumption; still worth confirming with EveryMind | `COUNTY_ALIASES` |
 | P5 | Possible duplicates (6 pairs) | **Preserved** | Flagged; sensitivity scenario `exclude_possible_duplicates` drops the repeats only |
 | P6 | Fast completion (< 30 s) | **Warning only**, never an exclusion | Flag; sensitivity scenario available |
-| P7 | Training date fallback | **Removed.** Completion dates are not substituted in training-date analyses | `training_date_valid`, `training_month`; tested |
-| P8 | Identifying information and partner names | **Excluded from public exports** by default | `make_public_dataset(include_partner=False)`; tested |
+| P7 | Training date fallback | **Removed.** Completion dates are not substituted in training-date analyses. Since 2026-11-06, dates after the survey submission are also excluded from trends (1,295 usable). | `training_date_valid`, `training_month`; tested |
+| P8 | Identifying information and partner names | **Excluded from public exports.** Since 2026-11-06 the dashboard offers aggregate-only downloads; `make_public_dataset` also drops IDs, exact dates, session keys and duplicate links. | tested |
 | P9 | Manually confirmed schema mappings | **Supported** for future uploads | `CleaningConfig.confirm_mapping()`, `to_dict()` / `from_dict()` for saving; tested |
 | P10 | Category compatibility (value check) | Missing responses are separated from non-missing invalid responses; only non-missing values count toward the 80% compatibility share | `check_column_values` returns `missing`, `nonmissing`, `valid`, `invalid`; tested |

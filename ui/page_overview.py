@@ -1,4 +1,4 @@
-"""Executive Overview page: answers the main business question."""
+"""Executive Overview: the main business question answered in about 30 seconds."""
 
 from __future__ import annotations
 
@@ -8,6 +8,9 @@ from ui import charts as CH
 from ui import components as C
 from ui import transforms as X
 
+SHORT_QUESTION = ("How can EveryMind use its 988 training feedback to evaluate training effectiveness, find gaps across "
+                  "communities, and keep improving future trainings?")
+
 
 def _go(state, page: str) -> None:
     state["nav"] = page
@@ -16,79 +19,53 @@ def _go(state, page: str) -> None:
 def render(state, ready: bool) -> None:
     if not ready:
         C.hero("EveryMind · Understanding 988 training", "Turn training feedback into better trainings",
-               C.BUSINESS_QUESTION, ["Upload a survey", "Automatic cleaning", "Privacy-safe", "Evidence-based actions"])
-        c1, c2, c3 = st.columns(3)
-        C.insight(c1, "📈", "Q1 · Is the training working?", "Confidence before vs after, remaining gaps, trends.")
-        C.insight(c2, "🔗", "Q2 · What drives a good experience?", "Presenter ratings, recommendation, intent to call 988.")
-        C.insight(c3, "🗺️", "Q3 · Who are we reaching?", "Differences by county, role and language.")
-        st.markdown("")
-        st.button("Upload a survey to begin →", type="primary", on_click=_go, args=(state, "Data Upload & Quality"))
+               SHORT_QUESTION, ["Upload a survey", "Automatic cleaning", "Privacy-safe", "Evidence-based actions"])
+        st.button("Upload a survey to begin →", type="primary", on_click=_go, args=(state, "Upload & Data Quality"))
         return
 
     results, report = state["results"], state["report"]
     k = X.overview_kpis(results, report)
-    chips = [f"{k['responses']:,} survey responses", f"{len(k['objectives'])} learning objectives",
-             "Small groups protected", "No comments shown"]
+    chips = [f"{k['responses']:,} survey responses", "Small groups protected", "No comments shown"]
     if state.get("demo_loaded"):
-        chips.insert(0, "Demo · BuildFest 2025–26 data")
-    C.hero("Executive overview · main business question",
-           "How effective is EveryMind's 988 training, and what should change next?", C.BUSINESS_QUESTION, chips)
+        chips.insert(0, "Demo data · BuildFest 2025–26 sample")
+    C.hero("Executive overview", "Is EveryMind's 988 training working, and what should change next?",
+           SHORT_QUESTION, chips)
 
     c1, c2, c3, c4 = st.columns(4)
-    C.kpi(c1, f"{k['responses']:,}", "Survey responses", f"{k['paired_n']:,} with before & after answers", "🧾")
+    C.kpi(c1, f"{k['responses']:,}", "Survey responses", f"{k['paired_n']:,} answered both before & after", "🧾")
     if k["largest_gain"]:
-        C.kpi(c2, f"+{k['largest_gain']['pp']:.0f} pp", "Biggest confidence boost", k["largest_gain"]["label"], "🚀")
+        C.kpi(c2, f"+{k['largest_gain']['pp']:.0f} points", "Largest confidence increase",
+              f"{k['largest_gain']['label']} (percentage points)", "🚀")
     if k["largest_gap"]:
         g = k["largest_gap"]
-        C.kpi(c3, f"{g['pct']}%", "Biggest remaining gap", f"{g['label']} · {g['k']} people", "🎯")
+        C.kpi(c3, f"{g['pct']}%", "Largest remaining gap", f"{g['label']}: {g['k']} people not yet confident", "🎯")
     if k["recommend"]:
-        C.kpi(c4, f"{k['recommend']['mean']:.1f}/10", "Would recommend", f"{k['recommend']['promoters']}% gave 9–10", "⭐")
+        C.kpi(c4, f"{k['recommend']['mean']:.1f}/10", "Would recommend the training",
+              f"{k['recommend']['promoters']}% gave 9–10", "⭐")
 
-    C.section("Did confidence improve?", "Share agreeing they can do each learning objective")
-    cols = st.columns(len(k["objectives"]) or 1)
-    for col, o in zip(cols, k["objectives"]):
-        C.objective_card(col, o)
-    C.small_print("'Before' ratings were recalled after the training, so these are self-reported changes, not proof "
-                  "that the training caused them. Agree = Agree or Strongly agree.")
-
-    C.section("Where to focus", "What the data says needs attention")
-    i1, i2, i3 = st.columns(3)
-    if k["largest_gap"]:
-        g = k["largest_gap"]
-        C.insight(i1, "🎯", "Close the remaining gap",
-                  f"{g['pct']}% ({g['k']} of {g['n']:,}) still don't feel confident they can "
-                  f"{g['label'].lower()} after training.")
-    if k["lowest_experience"]:
-        le = k["lowest_experience"]
-        C.insight(i2, "🎤", "Boost engagement",
-                  f"'{le['label']}' is the lowest-rated part of the experience ({le['pct']}% agree).")
-    if k["call_988"]:
-        c = k["call_988"]
-        C.insight(i3, "📞", "Ask everyone about calling 988",
-                  f"Only {c['valid_pct']}% of respondents were asked how likely they are to call 988, so this key "
-                  "outcome can't be tracked yet.")
-
-    left, right = st.columns([3, 2])
+    left, right = st.columns([3, 2], gap="medium")
     with left:
-        st.plotly_chart(CH.before_after(X.q1_before_after(results["q1"]), "Confidence before (recalled) and after",
-                                        height=300), key="ov_ba")
+        st.plotly_chart(CH.before_after(X.q1_before_after(results["q1"]),
+                                        "% agreeing they can do each learning goal", height=300), key="ov_ba")
+        up = sum(1 for o in k["objectives"] if o["change"] > 0)
+        C.takeaway(f"**Agreement rose on {up} of {len(k['objectives'])} learning goals**, but participants recalled "
+                   "their 'before' ratings after the training, so this is perceived, not proven, change.")
     with right:
-        C.bullet_card("Communities & populations", X.community_highlights(results["q3"])
-                      or ["No group differences met the comparison rule."], "🗺️")
-        st.markdown("")
-        C.bullet_card("Data limitations", k["high_warnings"] or ["No high-severity data-quality warnings."], "⚠️")
-        st.button("Explore community differences →", on_click=_go, args=(state, "Q3 · Community Differences"))
+        C.section("Key takeaways")
+        for icon, title, text in X.overview_takeaways(results, report):
+            st.markdown(f"**{icon} {title}**  \n{text}")
 
-    C.section("Top recommendations", "Generated by transparent rules from the verified results")
-    recs = results["recommendations"]["recommendations"]
-    top = [r for r in recs if r["priority"] == "high"] + [r for r in recs if r["priority"] == "medium"]
-    for row in range(0, min(4, len(top)), 2):
-        cols = st.columns(2)
-        for col, r in zip(cols, top[row:row + 2]):
-            C.rec_card(col, r)
-        st.markdown("")
-    with st.expander(f"All {len(recs)} recommendations with evidence"):
-        for r in recs:
-            C.rule_recommendation(r)
-    st.button("✨ Get AI-drafted recommendations →", type="primary", on_click=_go,
-              args=(state, "AI Insights & Recommendations"))
+    priorities = results["recommendations"].get("priorities", [])
+    if priorities:
+        C.section("Priority actions", "Each links evidence → action → who → how progress is measured")
+        for i in range(0, len(priorities), 2):
+            cols = st.columns(2, gap="medium")
+            for col, p in zip(cols, priorities[i:i + 2]):
+                with col:
+                    C.priority_card(p, compact=True)
+            st.markdown("")
+    b1, b2 = st.columns(2)
+    b1.button("Explore the findings →", type="primary", on_click=_go, args=(state, "Explore Findings"),
+              width="stretch")
+    b2.button("Full recommendations & AI insights →", on_click=_go, args=(state, "AI Insights & Recommendations"),
+              width="stretch")

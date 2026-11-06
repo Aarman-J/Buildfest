@@ -352,9 +352,11 @@ def test_sensitivity_excludes_flagged_rows(real, real_results):
 # Independent verification against the raw spreadsheet (no cleaning code)
 # ---------------------------------------------------------------------------
 
-def _raw_scores(raw: pd.DataFrame, col_idx: int) -> pd.Series:
+def _raw_scores(raw: pd.DataFrame, col_idx: int, experience: bool = False) -> pd.Series:
     scale = {"strongly disagree": 1, "disagree": 2, "neither agree nor disagree": 3,
              "neither agree or disagree": 3, "agree": 4, "strongly agree": 5}
+    if experience:  # approved normalization for the three experience items only
+        scale = {**scale, "very agree": 5, "satisfied": 4}
     s = raw.iloc[:, col_idx].map(lambda v: scale.get(str(v).replace("\xa0", " ").strip().lower())
                                  if pd.notna(v) else None)
     return pd.to_numeric(s, errors="coerce")
@@ -377,7 +379,7 @@ def test_headlines_match_raw_spreadsheet(real_results):
         assert q1[key]["change"]["improved"]["k"] == int((post[both] > pre[both]).sum())
     q2 = real_results["q2"]
     for e, idx in zip(q2["experience"], (13, 14, 15)):
-        s = _raw_scores(raw, idx).dropna()
+        s = _raw_scores(raw, idx, experience=True).dropna()
         assert e["coverage"]["valid"] == len(s)
         assert e["agree"]["pct"] == round(100 * (s >= 4).mean(), 1)
     rec = raw.iloc[:, 16].dropna()

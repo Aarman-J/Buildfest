@@ -116,6 +116,14 @@ PARTNER_SPLIT = re.compile(r"\s+(?:in partnership with|with|w/)\s+|\s*\(|\s+-\s+
 # ---------------------------------------------------------------------------
 
 
+# Approved normalization (2026-11-06) of two non-standard labels used by a variant form, applied ONLY to the
+# three training-experience items (never to the six confidence items). Evidence: 23 of the 24 rows using them
+# answer consistently within a single label, and their recommend scores are clearly positive (mean 9.1 / 8.6).
+# Both map to "agree" (>= 4), so % agree is unaffected by the exact level; means/"strongly agree" shares are.
+# Raw text is kept in <field>_raw and rows are flagged `flag_experience_label_normalized`.
+EXPERIENCE_LABEL_MAP = {"very agree": 5, "satisfied": 4}
+
+
 @dataclass
 class CleaningConfig:
     fast_completion_seconds: float = 30
@@ -124,7 +132,8 @@ class CleaningConfig:
     min_group_size: int = 10           # groups smaller than this trigger small-n warnings
     service_area_states: tuple = ("MD",)
     # User-approved additions. Keys are compared case-insensitively.
-    likert_label_overrides: dict[str, int] = field(default_factory=dict)  # e.g. {"very agree": 5}
+    likert_label_overrides: dict[str, int] = field(default_factory=dict)  # applies to ALL Likert items
+    experience_label_map: dict[str, int] = field(default_factory=lambda: dict(EXPERIENCE_LABEL_MAP))
     role_aliases: dict[str, str] = field(default_factory=dict)            # e.g. {"teacher": "school_staff"}
     county_aliases: dict[str, tuple[str, str | None]] = field(default_factory=dict)
     column_aliases: dict[str, list[str]] = field(default_factory=dict)
@@ -358,13 +367,18 @@ def clean_survey(raw_df: pd.DataFrame, config: CleaningConfig | None = None) -> 
 
     mapping = map_columns(list(raw.columns), aliases=cfg.column_aliases, overrides=cfg.column_overrides)
     likert_scores = {**LIKERT_SCORES, **{k.lower().strip(): int(v) for k, v in cfg.likert_label_overrides.items()}}
+    exp_map = {k.lower().strip(): int(v) for k, v in (cfg.experience_label_map or {}).items()}
+    experience_scores = {**exp_map, **likert_scores}   # standard labels always win
+
+    def scores_for(f: str) -> dict[str, int]:
+        return experience_scores if f in SAT_FIELDS else likert_scores
 
     # Value-based sanity check of automatic matches (overrides are trusted).
     value_checks = {}
     for m in mapping.with_status("matched"):
         if m.method == "override":
             continue
-        chk = check_column_values(m.field, raw.iloc[:, m.position], likert_scores)
+        chk = check_column_values(m.field, raw.iloc[:, m.position], scores_for(m.field))
         value_checks[m.field] = chk
         if not chk["ok"]:
             mapping.reject(m.position, f"only {chk['valid_share']:.0%} of values fit {m.field}; confirm mapping")
@@ -439,7 +453,9 @@ def clean_survey(raw_df: pd.DataFrame, config: CleaningConfig | None = None) -> 
             "before_988_launch": int(out["flag_training_date_implausible"].sum()),
             "median_days_to_completion": None if gap.dropna().empty else float(gap.median()),
         }
-        usable = td.notna() & ~out["flag_training_date_implausible"]
+        # Dates before the 988 launch or after the survey was submitted are not usable for training-date trends
+        # (the record itself is kept for every other analysis).
+        usable = td.notna() & ~out["flag_training_date_implausible"] & ~out["flag_training_date_after_completion"]
     else:
         td = pd.Series(pd.NaT, index=raw.index, dtype="datetime64[ns]")
         usable = pd.Series(False, index=raw.index)
@@ -485,11 +501,21 @@ def clean_survey(raw_df: pd.DataFrame, config: CleaningConfig | None = None) -> 
 
     # --- Likert items ------------------------------------------------------
     offscale_any = pd.Series(False, index=raw.index)
+    exp_normalized = pd.Series(False, index=raw.index)
+    exp_counts: dict[str, dict[str, int]] = {}
     lik_std = {}
     for f in LIKERT_FIELDS:
         if f not in pos:
             continue
-        cols, lstats = _clean_likert(src(f), likert_scores)
+        cols, lstats = _clean_likert(src(f), scores_for(f))
+        if f in SAT_FIELDS and exp_map:
+            key = _cmap(src(f), lambda v: (clean_label(v) or "").lower() or None)
+            hit = key.isin(set(exp_map) - set(likert_scores))
+            exp_normalized |= hit
+            counts = key[hit].value_counts()
+            if len(counts):
+                exp_counts[f] = {str(k): int(v) for k, v in counts.items()}
+            lstats["user_override_applied"] -= int(hit.sum())
         out[f], out[f"{f}_label"], out[f"{f}_raw"] = cols["score"], cols["label"], cols["raw"]
         offscale_any |= cols["offscale"]
         lik_std[f] = {k: v for k, v in lstats.items() if k != "offscale"}
@@ -497,6 +523,9 @@ def clean_survey(raw_df: pd.DataFrame, config: CleaningConfig | None = None) -> 
             stats["unexpected_categories"][f] = {str(k)[:60]: int(v) for k, v in lstats["offscale"].items()}
     if lik_std:
         out["flag_offscale_label"] = offscale_any
+        out["flag_experience_label_normalized"] = exp_normalized
+        if exp_counts:
+            std["experience_labels_normalized"] = exp_counts
         for k in ("hidden_chars_removed", "wording_variant", "case_variant", "user_override_applied"):
             std[f"likert_{k}"] = {f: v[k] for f, v in lik_std.items() if v[k]}
 
@@ -680,15 +709,21 @@ def _column_order(df: pd.DataFrame) -> list[str]:
 # ---------------------------------------------------------------------------
 
 PUBLIC_DROP_EXACT = {"start_time", "completion_time", "role_unrecognized", "county_partner", *TEXT_FIELDS}
+# Quasi-identifiers removed from any row-level export: IDs, exact dates/durations, session keys, duplicate links.
+ROW_IDENTIFIERS = {"response_id", "response_id_generated", "training_date", "completion_date", "completion_seconds",
+                   "session_key", "duplicate_group"}
 
 
 def make_public_dataset(cleaned: pd.DataFrame, include_partner: bool = False) -> pd.DataFrame:
-    """Return a copy without free text, raw audit values, exact timestamps or extra columns.
+    """Row-level copy with direct and indirect identifiers removed. NOT for public download.
 
-    Kept: canonical codes/scores, dates (day precision), durations, booleans and flags.
-    Free-text fields are replaced by `<field>_provided` booleans.
+    Removes free text, raw audit values, exact timestamps and dates, response IDs, session keys, duplicate
+    links and extra columns; keeps codes/scores, training month and flags. Removing identifiers does not
+    guarantee anonymity (small groups can still be singled out), so the dashboard only offers aggregate
+    downloads. Free-text fields are replaced by `<field>_provided` booleans.
     """
-    drop = set(PUBLIC_DROP_EXACT) - ({"county_partner"} if include_partner else set())
+    drop = set(PUBLIC_DROP_EXACT) | ROW_IDENTIFIERS
+    drop -= {"county_partner"} if include_partner else set()
     keep = [c for c in cleaned.columns
             if c not in drop and not c.endswith("_raw") and not c.startswith("extra__")]
     public = cleaned[keep].copy()

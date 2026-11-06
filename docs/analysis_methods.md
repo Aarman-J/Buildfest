@@ -54,6 +54,14 @@ For each available objective (`identify_mh`, `describe_988`, `know_when_988`):
 - **Trend by training month:** n, number of sessions, before/after agreement, change, % not agreeing, and the answer rate of each optional item. Months below `min_cell` are suppressed; months below `min_compare` are marked.
 - **Sensitivity:** headline figures recomputed with each flag set excluded. Robustness is judged on the data-quality exclusions only (reversed scale, fast completion, possible duplicates), with a threshold of less than 5 pp shift. Excluding straight-liners is shown for information only, because their change is zero by definition.
 
+- **Agreement categories (added 2026-11-06):** each paired respondent falls into exactly one category:
+  - reached agreement (below Agree before → Agree or above after)
+  - maintained agreement
+  - remained below agreement
+  - moved below agreement
+
+  The **reached-agreement rate** is reached ÷ started below Agree, and is "Not applicable" when nobody started below. This differs from numeric change: Disagree → Neutral is an improvement that doesn't reach agreement, and Strongly agree → Agree is a decline that maintains it.
+
 ## 4. Q2: experiences, relationships and feedback
 
 - **Experience items:** coverage (valid, missing, unusable), full distribution, % agree, % strongly agree, mean.
@@ -117,7 +125,9 @@ A development spot-check found misclassifications (for example, praise that ment
   - and, for proportions, non-overlapping Wilson intervals.
 
   Kruskal-Wallis tests on change scores are run only for non-overlapping groupings (county, primary role, language), and are exploratory.
-- **Composition check:** each county's recalled-before and after agreement rates are directly standardized to the overall student/non-student mix. Counties without at least `min_cell` respondents in each stratum are listed as *not standardizable*, meaning their differences cannot be separated from audience mix.
+- **Students vs other participants (added 2026-11-06):** membership-based. Students = anyone who selected Student, including multi-role respondents; others = did not select Student. This comparison is descriptive only.
+- **Exploratory label:** comparable groups with 30-49 respondents are labelled exploratory.
+- **Composition check** (strata now use Student *membership*): each county's recalled-before and after agreement rates are directly standardized to the overall student/non-student mix. Counties without at least `min_cell` respondents in each stratum are listed as *not standardizable*, meaning their differences cannot be separated from audience mix.
 
 ## 6. Recommendation engine (`src/recommendations.py`)
 

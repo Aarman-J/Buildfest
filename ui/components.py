@@ -138,9 +138,40 @@ def ai_recommendation(i: int, r: dict) -> None:
 
 
 def need_data() -> None:
-    st.info("No dataset is loaded yet. Go to **Data Upload & Quality** to upload a survey export "
+    st.info("No dataset is loaded yet. Go to **Upload & Data Quality** to upload a survey export "
             "(or load the sample dataset if it is available).", icon=":material/upload_file:")
 
 
 def small_print(text: str) -> None:
     _html(f'<div class="em-small">{e(text)}</div>')
+
+
+def takeaway(text: str) -> None:
+    """One-sentence takeaway under a chart. Text may contain **bold** markers only."""
+    safe = e(text)
+    parts = safe.split("**")
+    html_text = "".join(f"<b>{p}</b>" if i % 2 else p for i, p in enumerate(parts))
+    _html(f'<div class="em-takeaway">👉 {html_text}</div>')
+
+
+PRIORITY_BADGE = {"A": "high", "B": "medium", "C": "high", "D": "medium"}
+
+
+def priority_card(p: dict, compact: bool = False) -> None:
+    """Consolidated recommendation: evidence -> action -> implementation -> role -> measure -> limitation."""
+    cls = PRIORITY_BADGE.get(p["key"], "medium")
+    ev = "".join(f"<li>{e(x)}</li>" for x in p["evidence"])
+    body = (f'<div class="em-rec {cls}">' + tag(f"Priority {p['key']}", cls) + tag("Rule-based · verified data", "cat")
+            + f'<div class="t">{e(p["title"])}</div><div class="f">{e(p["finding"])}</div>'
+            f'<div class="row"><b>Evidence</b><ul style="margin:.15rem 0 .3rem 1.1rem;padding:0">{ev}</ul></div>'
+            f'<div class="row"><b>Action:</b> {e(p["action"])}</div>')
+    if not compact:
+        steps = "".join(f"<li>{e(s)}</li>" for s in p["implementation"])
+        body += (f'<div class="row"><b>How</b><ol style="margin:.15rem 0 .3rem 1.1rem;padding:0">{steps}</ol></div>'
+                 f'<div class="row"><b>Who:</b> {e(p["responsible_role"])}</div>'
+                 f'<div class="row"><b>Progress measure:</b> {e(p["success_metric"])}</div>'
+                 f'<div class="row"><b>Limitation:</b> {e(p["limitation"])}</div>')
+    else:
+        body += (f'<div class="row"><b>Who:</b> {e(p["responsible_role"])}</div>'
+                 f'<div class="row"><b>Progress measure:</b> {e(p["success_metric"])}</div>')
+    _html(body + "</div>")

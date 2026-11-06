@@ -6,13 +6,10 @@ A Streamlit dashboard for the University of Maryland BuildFest 2026 Nonprofit Da
 
 | Page | What it shows |
 |---|---|
-| Executive Overview | Headline results, remaining gaps, community notes, data limitations and top evidence-based recommendations |
-| Data Upload & Quality | Upload, column mapping and confirmation, cleaning, quality warnings, privacy-safe download |
-| Q1 · Training Effectiveness | Before (recalled) vs. after confidence, change, remaining gaps, monthly trends, uncertainty and sensitivity |
-| Q2 · Trends & Relationships | Presenter and organization ratings, recommendation, likelihood to call 988, correlations, provisional feedback themes |
-| Q3 · Community Differences | County, role (overlapping) and language comparisons, with small-group suppression and an audience-mix check |
-| AI Insights & Recommendations | Rule-based recommendations, plus optional AI-drafted suggestions (advisory, validated) |
-| Exports & Reports | Cleaned data, tables, executive summary, data-quality report, recommendations |
+| Executive Overview | Main question, 4 headline numbers, one before/after chart, key takeaways, 4 priority actions |
+| Explore Findings | Tabs for Q1 (effectiveness), Q2 (experiences and relationships) and Q3 (community differences), with technical detail under "Advanced details" |
+| AI Insights & Recommendations | 4 verified priority recommendations, all underlying rules, optional AI-drafted suggestions (advisory, validated) |
+| Upload & Data Quality | Upload, column mapping, automatic cleaning, quality warnings, aggregate-only downloads |
 
 ## Project structure
 
@@ -47,13 +44,13 @@ Open http://localhost:8501. Streamlit reads `.streamlit/secrets.toml` and `.stre
 
 ## Uploading survey data
 
-1. Go to **Data Upload & Quality** and upload an `.xlsx` or `.csv` export (one row per response). If the challenge file is present at `data/BuildFest_EveryMind_Survey_Data_FULL.xlsx`, a **Load sample** button appears.
+1. Go to **Upload & Data Quality** and upload an `.xlsx` or `.csv` export (one row per response). If the challenge file is present at `data/BuildFest_EveryMind_Survey_Data_FULL.xlsx`, a **Load sample** button appears.
 2. Review the column mapping:
    - Recognized questions, aliases, reordered columns and extra columns are handled automatically.
    - Uncertain matches (ambiguous, suggested or values that don't fit) are **never applied silently**. Choose the right field or leave the column unmapped.
    - Columns that look like personal data, such as Email or Name, are not loaded.
 3. Click **Run cleaning & analysis**. No rows are deleted. Problems are flagged, and the page explains which analyses can't run because of missing questions.
-4. Browse the Q1, Q2 and Q3 pages. Use **Exports & Reports** for downloads. A new upload clears all previous results, including AI drafts.
+4. Results update automatically when no column needs confirmation. Browse **Explore Findings** (Q1–Q3 tabs) and download aggregate reports at the bottom of the upload page. A new upload clears all previous results, including AI drafts.
 
 Uploads are kept only in the browser session's memory and are never written to disk.
 
@@ -111,7 +108,7 @@ Command-line pipelines:
 1. Push this repository to GitHub. `.gitignore` excludes `secrets.toml`, `outputs/` and any other data files. Only the challenge sample spreadsheet is committed.
 2. Go to https://share.streamlit.io, click **Create app**, choose this repo, branch `main`, main file `app.py`. Under **Advanced settings**, choose Python 3.12.
 3. In **Advanced settings → Secrets**, paste the contents of [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example) with your real key. This is server-side and never visible to visitors.
-4. Click **Deploy**. The BuildFest 2025–26 sample (`data/BuildFest_EveryMind_Survey_Data_FULL.xlsx`) is committed, so the hosted app auto-loads it as a demo. Visitors can still upload their own survey on *Data Upload & Quality*. Set `[demo] autoload = false` to turn this off.
+4. Click **Deploy**. The BuildFest 2025–26 sample (`data/BuildFest_EveryMind_Survey_Data_FULL.xlsx`) is committed, so the hosted app auto-loads it as a demo. Visitors can still upload their own survey on *Upload & Data Quality*. Set `[demo] autoload = false` to turn this off.
 
 **AI access on the public site.** `access = "public"` lets any visitor click *Generate AI Recommendations*. Spending is bounded server-side:
 - 3 calls per visitor per hour and 6 per day, with a 30 s cooldown

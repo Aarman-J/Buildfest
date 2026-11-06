@@ -17,6 +17,7 @@ A small or absent group is a data-collection fact, not evidence of poor access.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 if __package__ in (None, ""):
@@ -57,6 +58,7 @@ def group_profile(g: pd.DataFrame, cfg: AnalysisConfig) -> dict:
     n = len(g)
     prof = {"n_rows": n if n >= cfg.min_cell else None, "n_display": _display_n(n, cfg),
             "suppressed": n < cfg.min_cell, "comparable": n >= cfg.min_compare,
+            "exploratory": cfg.min_compare <= n < cfg.exploratory_below,
             "n_sessions": int(g["session_key"].nunique()) if "session_key" in g and n >= cfg.min_cell else None}
     if prof["suppressed"]:
         return prof
@@ -177,6 +179,7 @@ def compare(df: pd.DataFrame, groups: list, cfg: AnalysisConfig, overlapping: bo
                     "group_value": a["pct"], "group_n": a["n"], "rest_value": b["pct"], "rest_n": b["n"],
                     "difference_pp": diff, "ci_separated": separated,
                     "signal": bool(abs(diff) >= cfg.meaningful_pp and (separated is None or separated)),
+                    "exploratory": a["n"] < cfg.exploratory_below,
                     "evidence_type": EXPLORATORY,
                 })
         if not overlapping and len(comparable) >= 2:
@@ -193,11 +196,17 @@ def compare(df: pd.DataFrame, groups: list, cfg: AnalysisConfig, overlapping: bo
 
 
 def composition_check(df: pd.DataFrame, cfg: AnalysisConfig) -> dict:
-    """Is a county difference explained by its role mix? Crude vs role-standardized post-agree rates."""
-    if not has(df, "county", "role_primary"):
+    """Is a county difference explained by its role mix? Crude vs role-standardized agree rates.
+
+    Strata use role *membership*: everyone who selected Student (including multi-role respondents) vs
+    everyone who did not. This is an exclusive split, so standardization stays valid.
+    """
+    if not has(df, "county", "role_student"):
         return {"available": False}
-    strata = df["role_primary"].where(df["role_primary"] == "student", "non_student")
-    overall_mix = strata.value_counts(normalize=True)
+    known = df["role_student"].notna()
+    strata = pd.Series(np.where(df["role_student"].fillna(False).astype(bool), "student", "non_student"),
+                       index=df.index, dtype="object").where(known)
+    overall_mix = strata.dropna().value_counts(normalize=True)
     mix_rows = []
     for c in sorted(df["county"].dropna().unique(), key=str):
         sub = df[df["county"] == c]
@@ -243,7 +252,7 @@ def composition_check(df: pd.DataFrame, cfg: AnalysisConfig) -> dict:
             row["composition_may_matter"] = (max(shifts) >= 5) if shifts else None
             row["standardization_possible"] = ok
             adj.append(row)
-    return {"available": True, "strata": "student vs non-student (role_primary)",
+    return {"available": True, "strata": "selected Student (any role combination) vs did not select Student",
             "overall_mix_pct": {k: round(100 * v, 1) for k, v in overall_mix.items()},
             "county_role_mix": mix_rows, "standardized": adj,
             "not_standardizable": sorted({r["county"] for r in adj if not r["standardization_possible"]}),
@@ -271,6 +280,36 @@ def grouping(df: pd.DataFrame, dimension: str, cfg: AnalysisConfig) -> dict:
             "evidence_type": VERIFIED}
 
 
+def audience_comparison(df: pd.DataFrame, cfg: AnalysisConfig) -> dict:
+    """Students (anyone who selected Student, incl. multi-role) vs everyone else (staff, caregivers, community).
+
+    Membership-based and mutually exclusive. Descriptive only: the two audiences attend different sessions.
+    """
+    if "role_student" not in df:
+        return {"available": False}
+    known = df["role_student"].notna()
+    is_student = df["role_student"].fillna(False).astype(bool) & known
+    is_other = ~df["role_student"].fillna(True).astype(bool)
+    out = {"available": True, "definition": "Students = selected 'Student' (alone or with another role). "
+           "Others = did not select Student.", "groups": []}
+    for key, label, m in (("student", "Students", is_student),
+                          ("non_student", "Staff, caregivers & community members", is_other)):
+        out["groups"].append({"key": key, "label": label, **group_profile(df[m], cfg)})
+    if "likelihood_recommend" in df:
+        rec = df["likelihood_recommend"].astype(float)
+        st, ot = rec[is_student].dropna(), rec[is_other].dropna()
+        out["recommend"] = {"student_mean": num(st.mean()) if len(st) >= cfg.min_compare else None,
+                            "student_n": int(len(st)),
+                            "others_mean": num(ot.mean()) if len(ot) >= cfg.min_compare else None,
+                            "others_n": int(len(ot)),
+                            "overall_mean": num(rec.mean()) if rec.notna().any() else None,
+                            "overall_n": int(rec.notna().sum())}
+    out["evidence_type"] = VERIFIED
+    out["caveat"] = ("Students and other participants mostly attend different sessions (schools vs community "
+                     "settings), so differences are descriptive, not caused by the audience type.")
+    return out
+
+
 def run_q3(df: pd.DataFrame, cfg: AnalysisConfig | None = None) -> dict:
     cfg = cfg or AnalysisConfig()
     work, excl = apply_exclusions(df, cfg.exclude_flags)
@@ -285,15 +324,18 @@ def run_q3(df: pd.DataFrame, cfg: AnalysisConfig | None = None) -> dict:
         "q3", "Community and population differences", QUESTION, len(work), cfg,
         exclusions=excl,
         policy={"min_cell": cfg.min_cell, "min_compare": cfg.min_compare, "meaningful_pp": cfg.meaningful_pp,
+                "exploratory_below": cfg.exploratory_below,
                 "description": (
                     f"- n < {cfg.min_cell}: statistics suppressed and n shown as '<{cfg.min_cell}' (privacy and "
                     "stability).\n"
                     f"- {cfg.min_cell} <= n < {cfg.min_compare}: descriptive results shown; excluded from "
                     "comparisons, signals and tests.\n"
-                    f"- n >= {cfg.min_compare}: included in comparisons.\n"
+                    f"- n >= {cfg.min_compare}: included in comparisons; {cfg.min_compare}-"
+                    f"{cfg.exploratory_below - 1} respondents are labelled exploratory.\n"
                     "- A small or absent group is a data-collection fact, not evidence of poor access.")},
         groupings=dims,
         composition_check=composition_check(work, cfg),
+        audience=audience_comparison(work, cfg),
         small_group_follow_ups=follow_ups,
         guardrails=GUARDRAILS,
     )

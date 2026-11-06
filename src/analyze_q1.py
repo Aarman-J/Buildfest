@@ -79,6 +79,18 @@ def objective_summary(df: pd.DataFrame, obj: dict, cfg: AnalysisConfig) -> dict:
             "moved_out_of_agree": share(p["post"] < AGREE_MIN, ~not_agree_before) if (~not_agree_before).any()
             else {"k": 0, "n": 0, "pct": None, "ci_low": None, "ci_high": None},
         },
+        # Four mutually exclusive categories relative to the Agree threshold (score >= 4). They partition all
+        # paired responses. This differs from numeric change: Disagree -> Neutral improved but did not reach
+        # agreement; Strongly agree -> Agree declined numerically but maintained agreement.
+        "agreement_categories": {
+            "reached": share(not_agree_before & (p["post"] >= AGREE_MIN)),
+            "maintained": share(~not_agree_before & (p["post"] >= AGREE_MIN)),
+            "remained_below": share(not_agree_before & (p["post"] < AGREE_MIN)),
+            "moved_below": share(~not_agree_before & (p["post"] < AGREE_MIN)),
+        },
+        # Denominator = respondents who started below Agree (not all pairs). None = not applicable.
+        "reached_agreement_rate": (share(p["post"] >= AGREE_MIN, not_agree_before) if not_agree_before.any()
+                                   else None),
         "remaining_gap": {
             "not_agree_after": share(p["post"] < AGREE_MIN),
             "neutral_after": share(p["post"] == 3),

@@ -318,6 +318,17 @@ def build_ai_payload(results: Mapping, quality_report: Mapping | None = None) ->
             not_agree_after_pct=g["not_agree_after"]["pct"], not_agree_after_n=g["not_agree_after"]["k"],
             paired_n=g["not_agree_after"]["n"], neutral_pct=g["neutral_after"]["pct"],
             disagree_pct=g["disagree_after"]["pct"])
+        ac, rr = o.get("agreement_categories"), o.get("reached_agreement_rate")
+        if ac:
+            _ev(ev, f"Q1.{k}.agreement_categories", "verified_finding",
+                f"'{o['label']}' (paired n = {o['coverage']['paired_n']}): {ac['reached']['pct']}% reached agreement, "
+                f"{ac['maintained']['pct']}% maintained agreement, {ac['remained_below']['pct']}% remained below "
+                f"agreement, {ac['moved_below']['pct']}% moved below agreement."
+                + (f" Of the {rr['n']} who started below Agree, {rr['pct']}% reached agreement." if rr else ""),
+                reached_pct=ac["reached"]["pct"], maintained_pct=ac["maintained"]["pct"],
+                remained_below_pct=ac["remained_below"]["pct"], moved_below_pct=ac["moved_below"]["pct"],
+                reached_n=ac["reached"]["k"], started_below_n=rr["n"] if rr else None,
+                reached_rate_pct=rr["pct"] if rr else None)
         _ev(ev, f"Q1.{k}.ceiling", "data_quality_warning",
             f"'{o['label']}': {o['ceiling']['pre_strongly_agree']['pct']}% chose 'Strongly agree' before training, "
             "so they cannot show improvement on this scale.",
@@ -359,13 +370,14 @@ def build_ai_payload(results: Mapping, quality_report: Mapping | None = None) ->
         cov = c["coverage"]
         _ev(ev, "Q2.call_988.coverage", "data_quality_warning",
             f"Likelihood to call 988 was answered by {cov['valid']} of {cov['rows']} respondents "
-            f"({cov['valid_pct']}%), because only some survey versions asked it.",
+            f"({cov['valid_pct']}%). This is answer coverage, not confirmed question exposure: missing answers "
+            "may reflect forms that did not show the question or respondents who skipped it.",
             valid_n=cov["valid"], rows=cov["rows"], valid_pct=cov["valid_pct"])
         if c.get("summary"):
             _ev(ev, "Q2.call_988.results", "verified_finding",
                 f"Among the {c['summary']['n']} respondents asked, mean likelihood to call 988 was "
                 f"{c['summary']['mean']} (0-10) and {c['very_likely_9_10']['pct']}% answered 9-10. Not "
-                "generalizable to respondents who were not asked.",
+                "generalizable to respondents without an answer.",
                 n=c["summary"]["n"], mean=c["summary"]["mean"], very_likely_pct=c["very_likely_9_10"]["pct"])
     rels = [x for x in q2.get("relationships", []) if x.get("rho") is not None and x["n"] >= min_compare]
     for fam in sorted({x["family"] for x in rels}):
@@ -416,7 +428,8 @@ def build_ai_payload(results: Mapping, quality_report: Mapping | None = None) ->
             overlap = " (roles overlap: respondents can be in several role groups)" if g.get("overlapping") else ""
             _ev(ev, f"Q3.{dim}.{_slug(grp['key'])}", "verified_finding",
                 f"{dim.replace('_', ' ').title()} group '{grp['label']}' (n = {grp['n_rows']}){overlap}: "
-                + "; ".join(parts) + (f"; mean recommend {vals['recommend_mean']}" if "recommend_mean" in vals else ""),
+                + "; ".join(parts) + (f"; mean recommend {vals['recommend_mean']}" if "recommend_mean" in vals else "")
+                + (" EXPLORATORY: fewer than 50 respondents." if grp.get("exploratory") else ""),
                 **vals)
         for sgl in g.get("comparison", {}).get("signals", []):
             _ev(ev, f"Q3.{dim}.signal.{_slug(sgl['group'])}.{sgl['objective']}.{sgl['metric']}", "follow_up_investigation",
@@ -424,6 +437,15 @@ def build_ai_payload(results: Mapping, quality_report: Mapping | None = None) ->
                 f"{sgl['group_value']} vs {sgl['rest_value']} ({sgl['difference_pp']} pp). Descriptive only.",
                 group_value=sgl["group_value"], rest_value=sgl["rest_value"], difference_pp=sgl["difference_pp"],
                 group_n=sgl["group_n"], rest_n=sgl["rest_n"])
+    aud = q3.get("audience", {})
+    arec = aud.get("recommend") or {}
+    if arec.get("student_mean") is not None and arec.get("others_mean") is not None:
+        _ev(ev, "Q3.audience.recommend", "verified_finding",
+            f"Mean likelihood to recommend (0-10): students {arec['student_mean']} (n = {arec['student_n']}) vs "
+            f"other participants {arec['others_mean']} (n = {arec['others_n']}); overall {arec['overall_mean']}. "
+            "Students = anyone who selected Student, including multi-role respondents. Descriptive only.",
+            student_mean=arec["student_mean"], student_n=arec["student_n"], others_mean=arec["others_mean"],
+            others_n=arec["others_n"], overall_mean=arec["overall_mean"])
     comp = q3.get("composition_check", {})
     if comp.get("available"):
         mix = [m for m in comp.get("county_role_mix", []) if m["n"] >= min_compare]
@@ -512,7 +534,8 @@ Rules (all mandatory):
 3. No causal claims. 'Before' ratings were recalled after training; describe changes as self-reported.
    Never say the training caused, proved or led to an outcome. Use "associated with", "reported".
 4. Do not interpret groups that are not in the evidence. Small counts are not evidence of poor access.
-5. Results on likelihood to call 988 apply only to respondents who were asked.
+5. Results on likelihood to call 988 apply only to respondents who answered it. Do not claim the others were
+   not asked; survey versions are inferred, not verified.
 6. Feedback themes are provisional (keyword-based, not yet human-validated). Say so if you use them.
 7. Add value beyond baseline_recommendations; do not copy them.
 8. Return at most {max_recs} recommendations, highest priority first.

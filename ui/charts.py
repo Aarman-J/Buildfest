@@ -9,6 +9,18 @@ import plotly.graph_objects as go
 from ui import theme as T
 
 
+def _wrap(text: str, width: int = 22) -> str:
+    """Wrap a category label onto several lines (Plotly uses <br>)."""
+    words, lines, cur = str(text).split(), [], ""
+    for w in words:
+        if cur and len(cur) + len(w) + 1 > width:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = f"{cur} {w}".strip()
+    return "<br>".join(lines + [cur])
+
+
 def _empty(msg: str) -> go.Figure:
     fig = go.Figure()
     fig.add_annotation(text=msg, showarrow=False, font={"color": T.MUTED})
@@ -29,7 +41,8 @@ def before_after(df: pd.DataFrame, title: str, y: str = "label", height: int = 3
     fig = go.Figure()
     for phase in ("Before (recalled)", "After"):
         d = df[df["phase"] == phase]
-        fig.add_bar(y=d[y], x=d["pct"], name=phase, orientation="h", marker_color=T.BEFORE_AFTER[phase],
+        fig.add_bar(y=[_wrap(v, 24) for v in d[y]], x=d["pct"], name=phase, orientation="h",
+                    marker_color=T.BEFORE_AFTER[phase],
                     error_x=_err(d), text=[f"{v:.1f}%" for v in d["pct"]], textposition="inside",
                     insidetextanchor="end", textfont={"color": "white" if phase == "After" else "#334155"},
                     customdata=d[["n"]].values,
@@ -37,7 +50,7 @@ def before_after(df: pd.DataFrame, title: str, y: str = "label", height: int = 3
     fig.update_layout(barmode="group", bargap=0.25)
     fig.update_xaxes(range=[0, 104], ticksuffix="%", title="% agreeing", tickvals=[0, 25, 50, 75, 100])
     fig.update_yaxes(autorange="reversed", title=None)
-    return T.layout(fig, title, height)
+    return T.layout(fig, title, height).update_layout(margin={"r": 40})
 
 
 def pp_change(df: pd.DataFrame, title: str) -> go.Figure:
@@ -62,12 +75,13 @@ def stacked_share(df: pd.DataFrame, title: str, cat: str, colors: dict, order: l
         d = df[df[cat] == c]
         if d.empty:
             continue
-        fig.add_bar(y=d[y], x=d["pct"], name=c, orientation="h", marker_color=colors.get(c, T.GREY),
+        fig.add_bar(y=[_wrap(v, 24) for v in d[y]], x=d["pct"], name=c, orientation="h",
+                    marker_color=colors.get(c, T.GREY),
                     text=[f"{v:.0f}%" if v >= 6 else "" for v in d["pct"]], textposition="inside",
                     textfont={"color": "white" if c not in ("Unchanged", "Neither agree nor disagree") else T.TEXT},
                     customdata=d[["k", "n"]].values if "k" in d else d[["n", "n"]].values,
                     hovertemplate="%{y}<br>" + c + ": %{x:.1f}% (%{customdata[0]} of %{customdata[1]})<extra></extra>")
-    fig.update_layout(barmode="stack")
+    fig.update_layout(barmode="stack", legend={"traceorder": "normal"})
     fig.update_xaxes(ticksuffix="%", title=None)
     fig.update_yaxes(autorange="reversed", title=None)
     return T.layout(fig, title, height)
@@ -112,7 +126,7 @@ def month_counts(df: pd.DataFrame, title: str) -> go.Figure:
                            textposition="outside", customdata=df[["n_sessions"]].values,
                            hovertemplate="%{x}<br>%{y} responses, %{customdata[0]} session(s)<extra></extra>"))
     fig.update_xaxes(type="category", title=None)
-    fig.update_yaxes(title="Responses")
+    fig.update_yaxes(title="Responses", range=[0, float(df["n_rows"].max()) * 1.22])
     return T.layout(fig, title, 240, legend=False)
 
 
@@ -161,7 +175,7 @@ def grouped_share(df: pd.DataFrame, title: str, x: str, color: str, colors: dict
         return _empty("No groups large enough to show")
     fig = go.Figure()
     for i, (c, d) in enumerate(df.groupby(color, sort=False)):
-        fig.add_bar(x=d[x], y=d["pct"], name=str(c),
+        fig.add_bar(x=[_wrap(v) for v in d[x]], y=d["pct"], name=str(c),
                     marker_color=(colors or {}).get(c, T.SEQUENCE[i % len(T.SEQUENCE)]),
                     error_y=_err(d) if {"ci_low", "ci_high"} <= set(d.columns) else None,
                     customdata=d[["n"]].values, text=[f"{v:.0f}%" for v in d["pct"]], textposition="inside",

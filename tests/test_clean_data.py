@@ -145,9 +145,18 @@ def test_unknown_likert_labels_flagged_not_guessed(label):
     assert rep["unexpected_categories"]["post_identify_mh"] == {label: 1}
 
 
-def test_real_offscale_counts(cleaned, report):
-    assert int(cleaned["flag_offscale_label"].sum()) == 24
-    assert report["unexpected_categories"]["sat_presenter_engaged"] == {"Very agree": 13, "Satisfied": 10}
+def test_real_experience_label_normalization(cleaned, report):
+    # Approved 2026-11-06: "Very agree" -> 5 and "Satisfied" -> 4 on the three experience items only.
+    assert int(cleaned["flag_experience_label_normalized"].sum()) == 24
+    assert int(cleaned["flag_offscale_label"].sum()) == 0
+    assert report["standardization"]["experience_labels_normalized"]["sat_presenter_engaged"] ==         {"very agree": 13, "satisfied": 10}
+    assert [int(cleaned[f].notna().sum()) for f in ("sat_presenter_engaged", "sat_presenter_knowledge",
+                                                    "sat_well_organized")] == [1148, 1145, 1141]
+    norm = cleaned["flag_experience_label_normalized"]
+    raw = cleaned.loc[norm, "sat_presenter_engaged_raw"]
+    assert set(raw.dropna()) <= {"Very agree", "Satisfied", "Strongly agree "}   # raw text preserved
+    assert (cleaned.loc[cleaned["sat_presenter_engaged_raw"] == "Very agree", "sat_presenter_engaged"] == 5).all()
+    assert (cleaned.loc[cleaned["sat_presenter_engaged_raw"] == "Satisfied", "sat_presenter_engaged"] == 4).all()
     # wording variant "or" normalized, not flagged
     assert report["standardization"]["likert_wording_variant"]["sat_presenter_engaged"] == 98
 
@@ -202,8 +211,9 @@ def test_dates_invalid_vs_missing_vs_inconsistent():
     assert out["flag_training_date_after_completion"].tolist() == [False, False, False, True, False, False]
     assert out["training_date"].iloc[4] == pd.Timestamp("2026-10-30")
     # completion date is never substituted for a missing/invalid training date
-    assert out["training_date_valid"].tolist() == [True, False, False, True, True, True]
-    assert out["training_month"].tolist()[:4] == ["2026-11", None, None, "2026-11"]
+    # a training date after the survey submission is not usable for training-date trends (row is kept)
+    assert out["training_date_valid"].tolist() == [True, False, False, False, True, True]
+    assert out["training_month"].tolist()[:4] == ["2026-11", None, None, None]
     assert out.loc[1:2, "session_key"].str.startswith("unknown date").all()
     assert "training_date_effective" not in out
     assert out["training_date_raw"].iloc[1] == "not a date"

@@ -16,20 +16,16 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ui import components as C  # noqa: E402
-from ui import page_ai, page_exports, page_overview, page_q1, page_q2, page_q3, page_upload  # noqa: E402
+from ui import page_ai, page_explore, page_overview, page_upload  # noqa: E402
 from ui import state as S  # noqa: E402
 from ui.theme import CSS  # noqa: E402
 
-PAGES = ["Executive Overview", "Data Upload & Quality", "Q1 · Training Effectiveness", "Q2 · Trends & Relationships",
-         "Q3 · Community Differences", "AI Insights & Recommendations", "Exports & Reports"]
-ICONS = {"Executive Overview": "🏠", "Data Upload & Quality": "📤", "Q1 · Training Effectiveness": "📈",
-         "Q2 · Trends & Relationships": "🔗", "Q3 · Community Differences": "🗺️",
-         "AI Insights & Recommendations": "✨", "Exports & Reports": "📦"}
-SHORT = {"Executive Overview": "Overview", "Data Upload & Quality": "Upload & Data Quality",
-         "Q1 · Training Effectiveness": "Q1 · Effectiveness", "Q2 · Trends & Relationships": "Q2 · Relationships",
-         "Q3 · Community Differences": "Q3 · Communities", "AI Insights & Recommendations": "AI Recommendations",
-         "Exports & Reports": "Exports & Reports"}
-NEEDS_DATA = set(PAGES) - {"Executive Overview", "Data Upload & Quality"}
+PAGES = ["Executive Overview", "Explore Findings", "AI Insights & Recommendations", "Upload & Data Quality"]
+ICONS = {"Executive Overview": "🏠", "Explore Findings": "📊", "AI Insights & Recommendations": "✨",
+         "Upload & Data Quality": "📤"}
+SHORT = {"Executive Overview": "Overview", "Explore Findings": "Explore Findings (Q1–Q3)",
+         "AI Insights & Recommendations": "Recommendations & AI", "Upload & Data Quality": "Upload & Data Quality"}
+NEEDS_DATA = set(PAGES) - {"Executive Overview", "Upload & Data Quality"}
 
 st.set_page_config(page_title="EveryMind 988 Training Insights", page_icon="💙", layout="wide")
 st.markdown(CSS, unsafe_allow_html=True)
@@ -82,18 +78,12 @@ with st.sidebar:
 
 if page == "Executive Overview":
     page_overview.render(state, ready)
-elif page == "Data Upload & Quality":
+elif page == "Upload & Data Quality":
     page_upload.render(state)
 elif page in NEEDS_DATA and not ready:
     C.header("EveryMind", page)
     C.need_data()
-elif page == "Q1 · Training Effectiveness":
-    page_q1.render(state)
-elif page == "Q2 · Trends & Relationships":
-    page_q2.render(state)
-elif page == "Q3 · Community Differences":
-    page_q3.render(state)
+elif page == "Explore Findings":
+    page_explore.render(state)
 elif page == "AI Insights & Recommendations":
     page_ai.render(state)
-elif page == "Exports & Reports":
-    page_exports.render(state)

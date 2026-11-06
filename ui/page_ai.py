@@ -63,25 +63,35 @@ def render(state) -> None:
     payload = build_ai_payload(results, report)
     fp = payload_fingerprint(payload, settings.model)
 
-    tab_ai, tab_rules, tab_about = st.tabs(["AI-drafted recommendations", "Rule-based recommendations (verified)",
-                                            "How the AI works"])
-    with tab_rules:
-        st.caption("Deterministic recommendations from documented rules applied to the verified results. These are "
-                   "the primary recommendations and are always available.")
-        for i, r in enumerate(results["recommendations"]["recommendations"]):
-            C.rule_recommendation(r, expanded=i == 0)
+    priorities = results["recommendations"].get("priorities", [])
+    rules = results["recommendations"]["recommendations"]
+    C.section("1 · Priority recommendations", "Verified: computed by documented rules from this dataset")
+    if priorities:
+        for i in range(0, len(priorities), 2):
+            cols = st.columns(2, gap="medium")
+            for col, p in zip(cols, priorities[i:i + 2]):
+                with col:
+                    C.priority_card(p)
+            st.markdown("")
+    else:
+        st.info("No priority rule was triggered by this dataset.")
+    with st.expander(f"All {len(rules)} underlying rule-based recommendations (each linked to its evidence)"):
+        for r in rules:
+            C.rule_recommendation(r)
 
-    with tab_ai:
+    C.section("2 · AI-drafted suggestions (optional)", f"Advisory: drafted by {provider}, then checked by Python")
+    with st.container(border=True):
         st.markdown("The AI drafts **additional, advisory** recommendations from a compact summary of verified aggregate "
                     "results. It never receives individual responses, IDs or comments, and every suggestion must cite "
                     "evidence IDs from that summary. Suggestions that fail automated checks are rejected, not shown.")
         cached = S.ai_result_for_current(state, fp)
         calls = state.get("ai_calls", 0)
         if not allowed:
-            st.info(reason + " The rule-based recommendations remain available in the next tab.", icon=":material/lock:")
+            st.info(reason + " The verified priority recommendations above are always available.",
+                    icon=":material/lock:")
         elif not api_key:
             st.warning(f"AI generation is enabled, but no {provider} API key is configured on the server. Rule-based "
-                       "recommendations are still available.")
+                       "recommendations above are still available.")
         else:
             st.caption(f"Model: `{settings.model}` ({provider}) · up to {settings.max_recommendations} recommendations · "
                        f"output limit {settings.max_output_tokens:,} tokens · timeout {settings.timeout_seconds:g}s · "
@@ -129,13 +139,13 @@ def render(state) -> None:
                 for i, r in enumerate(cached["recommendations"], 1):
                     C.ai_recommendation(i, r)
             else:
-                st.error(cached["message"] + " The rule-based recommendations are shown in the next tab.")
+                st.error(cached["message"] + " The verified priority recommendations above are unaffected.")
             if cached.get("rejected"):
                 with st.expander(f"{len(cached['rejected'])} AI suggestion(s) rejected by validation"):
                     for x in cached["rejected"]:
                         st.markdown(f"- **{x['title']}** – {'; '.join(x['reasons'])}")
 
-    with tab_about:
+    with st.expander("How the AI works: what is sent, how outputs are checked, cost and access controls"):
         st.markdown(f"""
 - **Model:** `{settings.model}` ({provider}), JSON output constrained by a strict schema (Pydantic) and re-validated in Python.
 - **Sent:** the aggregate evidence list below (percentages, counts, confidence intervals, correlation summaries,
