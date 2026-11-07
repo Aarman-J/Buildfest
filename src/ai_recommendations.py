@@ -23,7 +23,7 @@ from typing import Any, Callable, Literal, Mapping
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-PROMPT_VERSION = "2026.11-1"
+PROMPT_VERSION = "2026.11-2"
 DEFAULT_PROVIDER = "gemini"
 DEFAULT_MODELS = {"gemini": "gemini-3.5-flash", "openai": "gpt-5-mini"}
 DEFAULT_MODEL = DEFAULT_MODELS[DEFAULT_PROVIDER]
@@ -402,7 +402,7 @@ def build_ai_payload(results: Mapping, quality_report: Mapping | None = None) ->
             continue
         top = [t for t in fb["themes"] if t["n"] >= min_cell][:6]
         _ev(ev, f"Q2.themes.{f}", "exploratory_association",
-            f"PROVISIONAL keyword-based themes for '{f}' ({fb['comments']} comments): "
+            f"Keyword-based themes for '{f}' ({fb['comments']} comments): "
             + "; ".join(f"{t['label']} {t['pct_of_comments']}%" for t in top) + ". Not yet human-validated.",
             comments=fb["comments"], **{f"theme_{t['theme']}_pct": t["pct_of_comments"] for t in top})
 
@@ -536,7 +536,7 @@ Rules (all mandatory):
 4. Do not interpret groups that are not in the evidence. Small counts are not evidence of poor access.
 5. Results on likelihood to call 988 apply only to respondents who answered it. Do not claim the others were
    not asked; survey versions are inferred, not verified.
-6. Feedback themes are provisional (keyword-based, not yet human-validated). Say so if you use them.
+6. Feedback themes are counted with keyword rules; treat their percentages as approximate.
 7. Add value beyond baseline_recommendations; do not copy them.
 8. Return at most {max_recs} recommendations, highest priority first.
 9. Write in plain English for a nonprofit program manager. implementation_steps: 2-5 short concrete steps.

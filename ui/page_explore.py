@@ -11,8 +11,6 @@ from ui import state as S
 from ui import theme as T
 from ui import transforms as X
 
-PROVISIONAL = ("**Provisional:** themes are counted with documented keyword rules and have not yet been checked by "
-               "human reviewers. A comment can have several themes. Individual comments are never shown.")
 
 
 def render(state) -> None:
@@ -191,7 +189,6 @@ def _q2(state) -> None:
             C.kpi(c[2], f"{cc['unlikely_0_4']['pct']}%", "Answered 0–4", "Unlikely to call", "⚠️")
 
     st.markdown("#### 4 · What participants wrote")
-    st.caption(PROVISIONAL)
     field = st.segmented_control("Comment question", ["fb_improvements", "fb_most_valuable"],
                                  default="fb_improvements", key="q2_fb",
                                  format_func={"fb_most_valuable": "Most valuable thing learned",
@@ -202,7 +199,7 @@ def _q2(state) -> None:
         st.info("No comments for this question in this dataset.")
     else:
         top = themes[themes["theme"] != "other_unclassified"].sort_values("n", ascending=False).head(7)
-        st.plotly_chart(CH.theme_bars(top, f"Most common themes · {fb['comments']:,} comments (PROVISIONAL)"),
+        st.plotly_chart(CH.theme_bars(top, f"Most common themes · {fb['comments']:,} comments"),
                         key="q2_themes")
         lead = top.iloc[0]
         C.takeaway(f"**Most common theme: {lead['label'].lower()}** ({lead['pct_of_comments']:.0f}% of comments).")
@@ -240,7 +237,7 @@ def _q2(state) -> None:
             t = types.rename(columns={"type": "Type", "n": "Comments", "pct_of_comments": "% of comments"})
             t["Type"] = t["Type"].map({"praise": "Praise", "improvement_suggestion": "Improvement suggestion",
                                        "neutral": "Neutral / factual", "unclear": "Unclear / non-answer"})
-            st.markdown("**Comment types (PROVISIONAL)**")
+            st.markdown("**Comment types**")
             st.dataframe(t, hide_index=True)
 
 

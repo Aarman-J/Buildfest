@@ -508,8 +508,8 @@ def tables_zip(results: dict, report: dict) -> bytes:
     }
     for f in ("fb_most_valuable", "fb_improvements"):
         themes, types, _ = q2_themes(q2, f)
-        tables[f"q2_themes_{f}_PROVISIONAL.csv"] = themes
-        tables[f"q2_response_types_{f}_PROVISIONAL.csv"] = types
+        tables[f"q2_themes_{f}.csv"] = themes
+        tables[f"q2_response_types_{f}.csv"] = types
     for dim in q3_dimensions(q3):
         tables[f"q3_groups_{dim}.csv"] = q3_group_table(q3, dim)
         tables[f"q3_signals_{dim}.csv"] = q3_signals(q3, dim)
@@ -518,7 +518,7 @@ def tables_zip(results: dict, report: dict) -> bytes:
         for name, df in tables.items():
             z.writestr(name, df.to_csv(index=False))
         z.writestr("README.txt", "Aggregate tables from the EveryMind 988 training dashboard. Groups with fewer than "
-                                 "10 respondents are suppressed. Theme counts are provisional (keyword-based).\n")
+                                 "10 respondents are suppressed. Theme counts use documented keyword rules.\n")
     return buf.getvalue()
 
 
